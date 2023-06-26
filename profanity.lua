@@ -61,9 +61,32 @@ do -- scope optimization
 	end
 end
 
+local cache = {} -- this cache is never cleared which is fine for my uses, if you want to clear it then do so, I'd recommend only clearing the "false" entries
+
+-- local cacheHits = 0
+-- local cacheMisses = 0
+
 function ProfanityCheck(str)
-	str = lower(str) -- make it lowercase so we don't have to worry about case sensitivity
-	
+	str = lower(str) -- make it lowercase so we don't have to worry about case sensitivity, do this first because caching is stored in lower too for space reasons
+
+	local cached = cache[str]
+	if cached ~= nil then  -- if we've already checked this string then return the cached result, we have to do ~= nil because it could be false
+		-- unless we store it as "true" when it's "false" and {true,word} when it's actually true? that'd be scuffed but... yeah no that'd be scuffed
+		-- print("hit cache:",str) -- debugging
+		-- cacheHits = cacheHits + 1 -- debugging
+
+		if cached == false then -- we could use istable but in this case it's either false or a table
+			return false
+		end
+
+		return unpack(cache[str])
+	end
+
+	local unmodded = str -- gotta make sure we store the unmodified (lowercase) string for the cache
+
+	-- cacheMisses = cacheMisses + 1 -- debugging
+	-- print("missed cache:",str) -- debugging
+
 	for before,after in pairs(replacements) do
 		str = gsub(str, before, after)
 	end
@@ -74,9 +97,15 @@ function ProfanityCheck(str)
 
 	for _,word in ipairs(blacklist) do
 		if find(str,word) then -- if we find a blacklisted word then return true, previous testing has show find is faster than match by a reasonable margin
+			cache[unmodded] = {true,word} -- cache the result, unpacked later in this case
 			return true, word
 		end
 	end
+
+	-- cache the result, not a table this time since there's not a major need to not run a quick "== false in this case"
+	cache[unmodded] = false
+
+	-- print("storing cache:",unmodded) -- debugging
 
 	return false -- no profanity detected
 end
